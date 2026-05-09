@@ -11,7 +11,7 @@ import pandas as pd
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from src.akshare_client import get_fund_nav, get_fund_detail, batch_get_fund_nav
+from src.akshare_client import get_fund_nav, get_fund_detail, batch_get_fund_nav, batch_get_fund_nav_fast
 from src.config import AKSHARE_BATCH_SIZE, AKSHARE_BATCH_REST
 
 logger = logging.getLogger(__name__)
@@ -141,7 +141,7 @@ def fetch_fund_data(fund_code, start_date=None, end_date=None):
 
 
 def batch_fetch_funds(fund_pool=None, start_date=None, end_date=None,
-                      save_dir='data/raw', batch_size=None, rest_seconds=None):
+                      save_dir='data/raw', batch_size=None, rest_seconds=None, fast=False):
     """
     批量获取基金数据
 
@@ -152,6 +152,7 @@ def batch_fetch_funds(fund_pool=None, start_date=None, end_date=None,
         save_dir: 保存目录
         batch_size: 每批数量（默认从配置读取）
         rest_seconds: 批间休息秒数（默认从配置读取）
+        fast: 是否使用快速模式（多线程+低限流，仅限非交易时段）
 
     Returns:
         dict: {fund_code: DataFrame}
@@ -162,12 +163,14 @@ def batch_fetch_funds(fund_pool=None, start_date=None, end_date=None,
     os.makedirs(save_dir, exist_ok=True)
 
     codes = list(fund_pool.keys())
-    logger.info(f"开始批量获取: {len(codes)} 只基金, 批大小={batch_size}")
+    logger.info(f"开始批量获取: {len(codes)} 只基金, 快速模式={fast}")
 
-    # 使用 akshare_client 的批量获取（已有限流保护）
-    nav_dict = batch_get_fund_nav(codes, start_date, end_date,
-                                   batch_size=batch_size,
-                                   rest_seconds=rest_seconds)
+    if fast:
+        nav_dict = batch_get_fund_nav_fast(codes, start_date, end_date)
+    else:
+        nav_dict = batch_get_fund_nav(codes, start_date, end_date,
+                                       batch_size=batch_size,
+                                       rest_seconds=rest_seconds)
 
     # 保存到文件
     saved = 0
@@ -378,6 +381,12 @@ if __name__ == '__main__':
     elif len(sys.argv) > 1 and sys.argv[1] == 'update-nav':
         # 批量更新当日净值
         batch_update_nav_from_daily()
+
+    elif len(sys.argv) > 1 and sys.argv[1] == 'fast':
+        # 快速模式：多线程 + 低限流（仅限周末/非交易时段）
+        pool = load_fund_pool()
+        print(f"快速模式: {len(pool)} 只基金")
+        batch_fetch_funds(pool, start_date='2024-01-01', fast=True)
 
     else:
         # 默认：批量下载

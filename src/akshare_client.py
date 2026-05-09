@@ -16,7 +16,10 @@ import pandas as pd
 from src.config import (
     AKSHARE_JITTER_MIN, AKSHARE_JITTER_MAX,
     AKSHARE_BATCH_SIZE, AKSHARE_BATCH_REST,
-    AKSHARE_MAX_RETRIES
+    AKSHARE_MAX_RETRIES,
+    AKSHARE_FAST_JITTER_MIN, AKSHARE_FAST_JITTER_MAX,
+    AKSHARE_FAST_BATCH_SIZE, AKSHARE_FAST_BATCH_REST,
+    AKSHARE_FAST_WORKERS
 )
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
@@ -168,6 +171,82 @@ def batch_get_fund_nav(fund_codes, start_date=None, end_date=None,
             time.sleep(rest_seconds)
 
     logger.info(f"批量获取完成: {len(results)}/{total} 只基金")
+    return results
+
+
+def batch_get_fund_nav_fast(fund_codes, start_date=None, end_date=None,
+                             batch_size=None, rest_seconds=None, max_workers=None):
+    """
+    多线程并行获取基金净值（快速模式，适用于周末/非交易时段批量下载）
+
+    Args:
+        fund_codes: 基金代码列表
+        start_date: 开始日期
+        end_date: 结束日期
+        batch_size: 每批数量（默认 AKSHARE_FAST_BATCH_SIZE）
+        rest_seconds: 批间休息秒数（默认 AKSHARE_FAST_BATCH_REST）
+        max_workers: 并发线程数（默认 AKSHARE_FAST_WORKERS）
+
+    Returns:
+        dict: {fund_code: DataFrame}
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    import threading
+
+    batch_size = batch_size or AKSHARE_FAST_BATCH_SIZE
+    rest_seconds = rest_seconds or AKSHARE_FAST_BATCH_REST
+    max_workers = max_workers or AKSHARE_FAST_WORKERS
+
+    results = {}
+    total = len(fund_codes)
+    lock = threading.Lock()
+
+    def _fetch_one(code):
+        """单只基金获取（带限流）"""
+        try:
+            jitter = random.uniform(AKSHARE_FAST_JITTER_MIN, AKSHARE_FAST_JITTER_MAX)
+            time.sleep(jitter)
+            df = ak.fund_open_fund_info_em(symbol=code, indicator="单位净值走势")
+            df.columns = ['date', 'nav', 'daily_return']
+            df['date'] = pd.to_datetime(df['date'])
+            if start_date:
+                df = df[df['date'] >= pd.to_datetime(start_date)]
+            if end_date:
+                df = df[df['date'] <= pd.to_datetime(end_date)]
+            df['fund_code'] = code
+            df = df.sort_values('date').reset_index(drop=True)
+            return code, df
+        except Exception as e:
+            return code, None
+
+    for i in range(0, total, batch_size):
+        batch = fund_codes[i:i + batch_size]
+        batch_num = i // batch_size + 1
+        total_batches = (total + batch_size - 1) // batch_size
+
+        if is_trading_hours():
+            logger.warning(f"当前处于交易时段，等待至 15:05 后继续...")
+            while is_trading_hours():
+                time.sleep(60)
+
+        logger.info(f"批次 {batch_num}/{total_batches}: {len(batch)} 只基金, {max_workers} 线程并行")
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(_fetch_one, code): code for code in batch}
+            for future in as_completed(futures):
+                code, df = future.result()
+                if df is not None and not df.empty:
+                    with lock:
+                        results[code] = df
+                    logger.info(f"  {code}: {len(df)} 条数据")
+                else:
+                    logger.warning(f"  {code}: 获取失败或数据为空")
+
+        if i + batch_size < total:
+            logger.info(f"批间休息 {rest_seconds} 秒...")
+            time.sleep(rest_seconds)
+
+    logger.info(f"快速批量获取完成: {len(results)}/{total} 只基金")
     return results
 
 

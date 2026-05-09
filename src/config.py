@@ -44,12 +44,19 @@ EMAIL_SMTP_PORT = 465
 EMAIL_USER = '2085549322@qq.com'
 EMAIL_AUTH_CODE = 'dkciinxjojwhdiib'
 
-# ── AKShare 限流参数 ──
+# ── AKShare 限流参数（常规模式） ──
 AKSHARE_JITTER_MIN = 1.0    # 2.5 - 1.5 秒
 AKSHARE_JITTER_MAX = 4.0    # 2.5 + 1.5 秒
 AKSHARE_BATCH_SIZE = 50      # 每批处理基金数
 AKSHARE_BATCH_REST = 600     # 批间休息秒数（10 分钟）
 AKSHARE_MAX_RETRIES = 3      # 最大重试次数
+
+# ── AKShare 快速模式（周末/非交易时段批量下载） ──
+AKSHARE_FAST_JITTER_MIN = 0.3
+AKSHARE_FAST_JITTER_MAX = 0.8
+AKSHARE_FAST_BATCH_SIZE = 200
+AKSHARE_FAST_BATCH_REST = 30
+AKSHARE_FAST_WORKERS = 4     # 多线程并发数
 
 # ── 新闻过滤关键词 ──
 NEWS_WHITELIST = [
