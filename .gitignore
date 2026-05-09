@@ -1,0 +1,40 @@
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Data
+data/raw/
+data/processed/
+*.db
+
+# Models
+models/
+
+# External projects
+FinRL/
+qlib/
+fund-crawler/
+
+# Notebooks
+notebooks/
+
+# Reports (generated)
+reports/
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
