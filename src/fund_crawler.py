@@ -277,7 +277,7 @@ def quick_screen_and_store(db=None):
         logger.warning(f"获取批量净值失败: {e}，跳过净值关联")
         daily_nav = pd.DataFrame()
 
-    # 第三步：关联净值数据，写入 funds 表
+    # 第三步：写入 funds 表
     logger.info("写入 funds 表...")
     stored = 0
     for fund in screened:
@@ -285,23 +285,10 @@ def quick_screen_and_store(db=None):
         name = fund['name']
         fund_type = fund['type']
 
-        # 尝试关联当日净值
-        nav_info = {}
-        if not daily_nav.empty:
-            nav_row = daily_nav[daily_nav['基金代码'] == code]
-            if not nav_row.empty:
-                row = nav_row.iloc[0]
-                nav_info = {
-                    'latest_nav': float(row.get('单位净值', 0) or 0),
-                    'daily_return': str(row.get('日增长率', '')),
-                }
-
-        # 写入 funds 表
         fund_data = {
             'fund_code': code,
             'fund_name': name,
             'fund_type': fund_type,
-            **nav_info,
         }
         if db.upsert_fund(fund_data):
             stored += 1
