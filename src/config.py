@@ -4,6 +4,7 @@
 """
 
 import os
+import socket
 from pathlib import Path
 
 
@@ -19,8 +20,27 @@ def load_env():
                     os.environ.setdefault(key.strip(), value.strip())
 
 
-# 模块加载时自动读取 .env
+def setup_proxy(proxy_url='http://127.0.0.1:7897'):
+    """检测代理是否可用，可用则设置，否则直连"""
+    try:
+        host, port = proxy_url.split('//')[1].split(':')
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(1)
+            s.connect((host, int(port)))
+        os.environ['http_proxy'] = proxy_url
+        os.environ['https_proxy'] = proxy_url
+        print(f"[proxy] 已启用: {proxy_url}")
+        return True
+    except Exception:
+        os.environ.pop('http_proxy', None)
+        os.environ.pop('https_proxy', None)
+        print("[proxy] 不可用，使用直连")
+        return False
+
+
+# 模块加载时自动读取 .env 并检测代理
 load_env()
+setup_proxy()
 
 # ── Supabase ──
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
@@ -84,3 +104,7 @@ NEWS_CATEGORIES = [
 FOCUS_SCORE_THRESHOLD = 70      # >= 70 进重点池
 OBSERVATION_SCORE_THRESHOLD = 50  # >= 50 进观察池
 # < 50 进淘汰池
+
+# ── 混合存储 ──
+COLD_STORAGE_DIR = 'data/cold_nav'  # 本地Parquet冷存储目录
+HOT_NAV_MONTHS = 3                  # Supabase保留最近N个月净值

@@ -6,9 +6,9 @@
 import os
 import sys
 
-# 设置代理
-os.environ['http_proxy'] = 'http://127.0.0.1:7897'
-os.environ['https_proxy'] = 'http://127.0.0.1:7897'
+# 代理自动检测（可用则走代理，否则直连）
+from src.config import setup_proxy
+setup_proxy()
 
 def main():
     print("=" * 60)

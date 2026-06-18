@@ -42,9 +42,8 @@ echo.
 echo 开始安装依赖包...
 echo.
 
-REM 配置代理
-set http_proxy=http://127.0.0.1:7897
-set https_proxy=http://127.0.0.1:7897
+REM 代理自动检测：可用则走代理，否则直连
+powershell -Command "try { (New-Object Net.Sockets.TcpClient).Connect('127.0.0.1', 7897); echo [proxy] 已启用: http://127.0.0.1:7897; $env:http_proxy='http://127.0.0.1:7897'; $env:https_proxy='http://127.0.0.1:7897' } catch { echo [proxy] 不可用，使用直连 }"
 
 REM 升级pip
 python -m pip install --upgrade pip
